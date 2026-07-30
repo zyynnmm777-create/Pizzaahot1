@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🍕 لوحة تحكم الإدارة - الفطيرة الساخنة</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;800&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;font-family:'Cairo',sans-serif;}
+    body{background-color:#111;color:#fff;padding:20px;direction:rtl;}
+    header{display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg, #1a1a1a, #800000);padding:15px 20px;border-radius:15px;border-bottom:2px solid #ff4d4d;margin-bottom:20px;}
+    h1{font-size:22px;color:#fff;}
+    .btn{padding:10px 18px;border:none;border-radius:12px;font-size:14px;font-weight:bold;cursor:pointer;background:linear-gradient(135deg, #ff4d4d, #800000);color:#fff;transition:0.2s;}
+    .btn:active{transform:scale(0.95);}
+    .orders-container{display:flex;flex-direction:column;gap:15px;}
+    .order-card{background:#1b1b1b;border:1px solid #333;border-radius:16px;padding:18px;box-shadow:0 4px 15px rgba(0,0,0,0.4);}
+    .order-header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #333;padding-bottom:10px;margin-bottom:12px;}
+    .order-id{font-weight:800;color:#ff4d4d;font-size:18px;}
+    .order-date{color:#888;font-size:13px;}
+    .customer-info{background:#222;padding:12px;border-radius:10px;margin-bottom:12px;font-size:14px;border:1px solid #444;}
+    .customer-info p{margin-bottom:5px;}
+    .items-list{margin-bottom:12px;font-size:14px;}
+    .item-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px dashed #333;}
+    .order-footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid #333;}
+    .total-price{font-size:18px;font-weight:800;color:#ff4d4d;}
+    .status-select{padding:8px 12px;border-radius:10px;background:#222;color:#fff;border:1px solid #444;font-family:'Cairo',sans-serif;font-weight:bold;cursor:pointer;}
+    .loading{text-align:center;padding:40px;color:#888;font-size:16px;}
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🍕 إدارة طلبات مطعم الفطيرة الساخنة</h1>
+    <button class="btn" onclick="fetchOrders()">🔄 تحديث الطلبات</button>
+  </header>
+
+  <div class="orders-container" id="adminOrdersList">
+    <div class="loading">جاري تحميل الطلبات من قاعدة البيانات...</div>
+  </div>
+
+  <!-- ربط ملف الجافاسكريبت الخارجي للإدارة -->
+  <script src="admin.js"></script>
+</body>
+</html>
+
