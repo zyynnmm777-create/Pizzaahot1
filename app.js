@@ -613,7 +613,14 @@ function renderOrders() {
   })
   .then(data => {
       let allOrders = Array.isArray(data) ? data : (data.orders || []);
-      let myOrders = allOrders.filter(o => String(o.customerPhone || o.customer_phone) === String(user.phone));
+      
+      // تنظيف رقم المستخدم ورقم الطلب لضمان مطابقة صحيحة 100%
+      let cleanUserPhone = String(user.phone).trim().replace(/\D/g, '').slice(-9);
+
+      let myOrders = allOrders.filter(o => {
+        let dbPhone = String(o.customerPhone || o.customer_phone || '').trim().replace(/\D/g, '').slice(-9);
+        return dbPhone === cleanUserPhone;
+      });
 
       if (myOrders.length === 0) {
         container.innerHTML = `
@@ -635,7 +642,7 @@ function renderOrders() {
           </div>
           <div style="font-size:0.85em; margin: 6px 0; color:#aaa;">التاريخ: ${o.date || o.created_at ? new Date(o.date || o.created_at).toLocaleString() : 'قريباً'}</div>
           <div style="background:#222; color:#fff; padding:8px; border-radius:8px; text-align:center; margin-top:8px; font-weight:bold; border:1px solid #444;">
-            الحالة: ${o.status || 'جاري التجهيز 🔥'}
+            الحالة: ${o.status || 'قيد المراجعة ⏳'}
           </div>
         </div>`;
       }).join('');
