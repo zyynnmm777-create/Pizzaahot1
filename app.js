@@ -614,7 +614,6 @@ function renderOrders() {
   .then(data => {
       let allOrders = Array.isArray(data) ? data : (data.orders || []);
       
-      // تنظيف رقم المستخدم ورقم الطلب لضمان مطابقة صحيحة 100%
       let cleanUserPhone = String(user.phone).trim().replace(/\D/g, '').slice(-9);
 
       let myOrders = allOrders.filter(o => {
@@ -631,18 +630,57 @@ function renderOrders() {
         return;
       }
 
-      container.innerHTML = myOrders.map((o) => {
+      container.innerHTML = myOrders.map((o, index) => {
         let displayId = o.id ? String(o.id) : '306239';
         let sequentialNum = displayId.length >= 6 ? displayId.slice(-6) : displayId;
+        
+        let orderStatus = o.status || 'قيد المراجعة ⏳';
+        
+        // لون مربع الحالة (أخضر مموه وهادئ لـ تم التوصيل، وافتراضي للباقي)
+        let statusStyle = "background:#222; color:#fff; border:1px solid #444;";
+        if (orderStatus.includes('تم التوصيل')) {
+          statusStyle = "background:rgba(46, 125, 50, 0.35); color:#a3e4d7; border:1px solid rgba(46, 125, 50, 0.6);";
+        }
+
+        // تحليل محتوى المنتجات (Items) لعرض تفاصيل الطلب
+        let itemsListHtml = '<div style="font-size:0.9em; color:#ccc;">لا توجد تفاصيل متاحة للمنتجات</div>';
+        try {
+          let parsedItems = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+          if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+            itemsListHtml = parsedItems.map(item => `
+              <div style="display:flex; justify-content:space-between; margin-bottom:6px; border-bottom:1px dashed #333; padding-bottom:4px;">
+                <span>${item.name || item.title || 'منتج'} (×${item.quantity || 1})</span>
+                <span style="color:#ff4d4d;">${(Number(item.price || item.total || 0)).toLocaleString('en-US')} ل.س</span>
+              </div>
+            `).join('');
+          }
+        } catch (e) {
+          itemsListHtml = `<div style="font-size:0.9em; color:#ccc;">${o.items || 'تفاصيل غير صالحة'}</div>`;
+        }
+
         return `
         <div class="order-card" style="background:#1a1a1a; border:1px solid #333; padding:15px; border-radius:12px; margin-bottom:12px; color:#fff;">
           <div style="font-weight:bold; display:flex; justify-content: space-between; align-items:center;">
             <span>طلب رقم: #${sequentialNum}</span>
             <span style="color:#ff4d4d">${(Number(o.total)||0).toLocaleString('en-US')} ل.س</span>
           </div>
-          <div style="font-size:0.85em; margin: 6px 0; color:#aaa;">التاريخ: ${o.date || o.created_at ? new Date(o.date || o.created_at).toLocaleString() : 'قريباً'}</div>
-          <div style="background:#222; color:#fff; padding:8px; border-radius:8px; text-align:center; margin-top:8px; font-weight:bold; border:1px solid #444;">
-            الحالة: ${o.status || 'قيد المراجعة ⏳'}
+          
+          <div style="display:flex; justify-content: space-between; align-items:center; margin-top: 8px;">
+            <div style="font-size:0.85em; color:#aaa;">التاريخ: ${o.date || o.created_at ? new Date(o.date || o.created_at).toLocaleString() : 'قريباً'}</div>
+            <!-- زر التفاصيل -->
+            <button onclick="toggleOrderDetails(${index})" style="background:#333; color:#fff; border:1px solid #555; padding:4px 10px; border-radius:6px; font-size:0.8em; cursor:pointer;">
+              📋 التفاصيل
+            </button>
+          </div>
+          
+          <div style="${statusStyle} padding:8px; border-radius:8px; text-align:center; margin-top:8px; font-weight:bold;">
+            الحالة: ${orderStatus}
+          </div>
+
+          <!-- تفاصيل الطلب المخفية والتي تظهر عند الضغط على زر التفاصيل -->
+          <div id="orderDetails-${index}" style="display:none; margin-top:12px; border-top:1px solid #333; padding-top:10px;">
+            <div style="font-weight:bold; margin-bottom:8px; color:#ff4d4d; font-size:0.95em;">📦 المنتجات المطلوبة:</div>
+            ${itemsListHtml}
           </div>
         </div>`;
       }).join('');
@@ -653,6 +691,18 @@ function renderOrders() {
       console.error(err);
       container.innerHTML = '<div class="empty-state">تعذر تحميل الطلبات الحالية ⚠️</div>';
   });
+}
+
+// دالة مساعدة لفتح وإغلاق تفاصيل الطلب عند الضغط على الزر
+function toggleOrderDetails(index) {
+  let detailsDiv = document.getElementById(`orderDetails-${index}`);
+  if (detailsDiv) {
+    if (detailsDiv.style.display === 'none') {
+      detailsDiv.style.display = 'block';
+    } else {
+      detailsDiv.style.display = 'none';
+    }
+  }
 }
 
 let searchTimeout = null;
