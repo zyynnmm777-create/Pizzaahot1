@@ -9,6 +9,11 @@
 </head>
 <body>
 
+  <!-- تنبيه حالة المطعم (يظهر تلقائياً إذا كان مغلقاً من لوحة الإدارة) -->
+  <div id="restaurantClosedBanner" style="display:none; background:#b71c1c; color:white; text-align:center; padding:10px; font-weight:bold; font-size:14px; position:fixed; top:0; left:0; width:100%; z-index:9999;">
+    ⚠️ عذراً، المطعم مغلق حالياً ونستقبل الطلبات في أوقات العمل الرسمية.
+  </div>
+
   <div id="splash">
     <img src="https://i.ibb.co/0RdxNTdS/1.png" class="header-logo-img" alt="شعار المطعم">
     <div class="loader-logo">الفطيرة الساخنة</div>
@@ -31,11 +36,20 @@
     <div class="menu-item" onclick="showPage('offersPage')">🔥 العروض</div>
     <div class="menu-item" onclick="showPage('ordersPage')">🛵 سجل الطلبات</div>
     <div class="menu-item" onclick="showPage('profilePage')">👤 حسابي وعنواني</div>
+    
+    <!-- الخيار الجديد المضاف للقائمة الجانبية -->
+    <div class="menu-item" onclick="showPage('deliveryFeePage')">📍 أجور التوصيل</div>
+
+    <!-- زر تواصل معنا عبر الواتساب في القائمة الجانبية -->
+    <a href="https://wa.me/963951873318" target="_blank" class="menu-item" style="color: #25D366; font-weight: bold; text-decoration: none; display: flex; align-items: center; gap: 5px;">
+      💬 تواصل معنا
+    </a>
 
     <!-- تذييل القائمة الجانبية (Sidebar Footer) -->
     <div class="sidebar-footer">
       <img src="https://i.ibb.co/0RdxNTdS/1.png" class="header-logo-img sidebar-logo" alt="شعار">
       <h4 class="logo">Pizza Hot-Delivery</h4>
+      <div style="color: #ff4d4d; font-weight: bold; font-size: 15px; letter-spacing: 0.5px; margin-top: 2px;">(فرع-كفرسوسة)</div>
     </div>
   </div>
   <div id="overlay" onclick="closeMenu()"></div>
@@ -44,11 +58,18 @@
     <div class="header-icons"><span onclick="openMenu()" style="cursor:pointer">☰</span></div>
     <div class="header-brand" onclick="goHome()">
       <img src="https://i.ibb.co/0RdxNTdS/1.png" class="header-logo-img" alt="شعار">
-      <div class="logo">Pizza Hot-Delivery</div>
+      <div style="display: flex; flex-direction: column; width: 100%;">
+        <div class="logo">Pizza Hot-Delivery</div>
+        <div style="color: #ff4d4d; font-weight: bold; font-size: 15px; letter-spacing: 0.5px; line-height: 1.1; margin-top: 2px; width: 100%;">(فرع-كفرسوسة)</div>
+      </div>
     </div>
     <div class="header-icons">
       <span onclick="showPage('searchPage')" style="cursor:pointer; font-size: 20px;" title="بحث">🔍</span>
-      <span onclick="openCustomerService()" style="cursor:pointer; font-size: 20px;" title="خدمة العملاء">🎧</span>
+      <!-- شارة الرقم الأحمر فوق أيقونة خدمة العملاء -->
+      <span onclick="openCustomerService()" style="cursor:pointer; font-size: 20px; position: relative;" title="خدمة العملاء">
+        🎧
+        <span id="clientSupportBadge" style="position: absolute; top: -5px; right: -5px; background: red; color: white; border-radius: 50%; padding: 2px 5px; font-size: 9px; font-weight: bold; display: none;">0</span>
+      </span>
     </div>
   </header>
 
@@ -200,15 +221,56 @@
     </div>
   </div>
 
-  <!-- نافذة تفاصيل الطلب -->
-  <div class="order-modal" id="orderDetailModal">
-    <div class="order-modal-content">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
-        <h3 style="margin:0; font-size:18px; color:#ff4d4d;">تفاصيل الطلب</h3>
-        <span onclick="closeOrderModal()" style="font-size:24px; cursor:pointer; color:#aaa;">&times;</span>
+  <!-- صفحة أجور التوصيل الجديدة -->
+  <div class="page" id="deliveryFeePage">
+    <div class="top"><div class="back" onclick="goBack()">→</div><h2>📍 حساب أجور التوصيل</h2></div>
+    <div style="padding: 20px; text-align: center;">
+      <p style="color: #ccc; font-size: 15px; margin-bottom: 20px;">الرجاء ادخال موقعك الجغرافي (GPS) لحساب أجور التوصيل بدقة لعندك:</p>
+      
+      <button class="btn" style="background-color: #2e7d32; margin-bottom: 20px;" onclick="calculateUserDeliveryFee()">
+        تحديد موقعي وحساب أجور التوصيل 📍
+      </button>
+
+      <div id="deliveryFeeResultCard" style="background: #1a1a1a; border: 1px solid #333; padding: 20px; border-radius: 12px; display: none; margin-top: 20px;">
+        <h3 style="color: #ff4d4d; margin-bottom: 10px;">نتيجة الحساب</h3>
+        <p id="distanceText" style="color: #aaa; font-size: 14px; margin-bottom: 8px;"></p>
+        <p id="feeResultText" style="color: #fff; font-size: 18px; font-weight: bold;"></p>
       </div>
-      <div id="orderModalBody" style="font-size:14px; line-height:1.6; color:#ddd;"></div>
-      <button class="btn" style="margin-top:20px;" onclick="closeOrderModal()">إغلاق</button>
+    </div>
+  </div>
+
+  <!-- نافذة تقييم التوصيل -->
+  <div class="order-modal" id="deliveryRatingModal" style="display:none;">
+    <div class="order-modal-content">
+      <h3 style="margin-bottom: 15px; color:#ff4d4d; text-align:center;">تقييم خدمة التوصيل والطلب</h3>
+      <p style="text-align:center; color:#aaa; font-size:13px; margin-bottom:15px;">كيف كانت تجربة توصيل طلبك اليوم؟</p>
+      
+      <div class="stars-row" id="deliveryStarsRow" style="justify-content:center; display:flex; gap:10px; font-size:28px; cursor:pointer; margin-bottom:15px;">
+        <span class="d-star" onclick="rateDelivery(1)">★</span>
+        <span class="d-star" onclick="rateDelivery(2)">★</span>
+        <span class="d-star" onclick="rateDelivery(3)">★</span>
+        <span class="d-star" onclick="rateDelivery(4)">★</span>
+        <span class="d-star" onclick="rateDelivery(5)">★</span>
+      </div>
+      
+      <textarea id="deliveryFeedbackNote" placeholder="اكتب ملاحظتك للمطعم (اختياري)..." style="width:100%; height:80px; background:#222; border:1px solid #444; color:#fff; padding:10px; border-radius:8px; margin-bottom:15px; resize:none;"></textarea>
+      
+      <button class="btn" onclick="submitDeliveryRating()">إرسال التقييم 🌟</button>
+      <button class="btn btn-dark" style="margin-top:10px; background:#333;" onclick="closeDeliveryRatingModal()">لاحقاً</button>
+    </div>
+  </div>
+
+  <!-- نافذة تفاصيل الطلب -->
+  <div class="order-modal" id="orderDetailsModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:9999;">
+    <div class="order-modal-content" style="background:#1a1a1a; border:1px solid #444; width:90%; max-width:400px; border-radius:12px; padding:20px; color:#fff; max-height:80vh; overflow-y:auto;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
+        <h3 style="margin:0; font-size:16px; color:#ff4d4d;">📋 تفاصيل الطلب</h3>
+        <button onclick="closeOrderDetailsModal()" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer;">&times;</button>
+      </div>
+      <div id="orderDetailsBody"></div>
+      <div style="margin-top:15px; text-align:center;">
+        <button class="btn" style="width:100%; padding:10px;" onclick="closeOrderDetailsModal()">إغلاق</button>
+      </div>
     </div>
   </div>
 
@@ -217,29 +279,12 @@
     <div class="avatar-modal-content">
       <h3 style="margin-bottom: 15px; color:#fff;">صورة الحساب الشخصي</h3>
       <div id="modalAvatarPreviewContainer" class="avatar-preview">
-        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4 z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
       </div>
       <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="handleFileSelected(event)">
       <button class="btn" style="margin-top: 0; margin-bottom: 10px;" onclick="document.getElementById('avatarFileInput').click()">📷 تغيير الصورة</button>
       <button class="btn btn-dark" style="margin-top: 0;" onclick="closeAvatarModal()">إغلاق</button>
     </div>
-  </div>
-
-  <!-- نافذة الدعم الفني المنبثقة (Live Chat Modal) الجديدة -->
-  <div id="supportModal" class="support-modal" style="display: none;">
-      <div class="support-modal-content">
-          <div class="support-header">
-              <h3>محادثة الدعم الفني</h3>
-              <button onclick="closeCustomerService()" class="close-btn">&times;</button>
-          </div>
-          <div id="supportChatMessages" class="support-body">
-              <p class="support-welcome">مرحباً بك! اكتب استفسارك أو مشكلتك وسنقوم بالرد عليك قريباً.</p>
-          </div>
-          <div class="support-footer">
-              <input type="text" id="supportMsgInput" placeholder="اكتب رسالتك هنا...">
-              <button onclick="sendSupportMessageUI()">إرسال</button>
-          </div>
-      </div>
   </div>
 
   <!-- شريط السلة الذكي الأسفل -->
@@ -263,5 +308,34 @@
 
   <script src="data.js"></script>
   <script src="app.js"></script>
+  <!-- سكربت فحص وتحديث شارة إشعارات العملاء -->
+  <script>
+    function checkClientUnreadSupport() {
+      if (typeof user === 'undefined' || !user || !user.phone) return;
+      let cleanPhone = String(user.phone).trim().replace(/\D/g, '').slice(-9);
+
+      fetch(`/.netlify/functions/support-messages?phone=${encodeURIComponent(user.phone)}`)
+      .then(res => res.json())
+      .then(data => {
+        let messages = Array.isArray(data) ? data : (data.messages || []);
+        let clientMsgs = messages.filter(m => {
+          let mPhone = String(m.customerPhone || '').trim().replace(/\D/g, '').slice(-9);
+          return mPhone === cleanPhone;
+        });
+
+        let adminReplies = clientMsgs.filter(m => m.sender === 'admin');
+        let badge = document.getElementById('clientSupportBadge');
+        if (badge) {
+          if (adminReplies.length > 0) {
+            badge.style.display = 'inline-block';
+            badge.innerText = adminReplies.length;
+          } else {
+            badge.style.display = 'none';
+          }
+        }
+      }).catch(err => console.log(err));
+    }
+    setInterval(checkClientUnreadSupport, 5000);
+  </script>
 </body>
 </html>
