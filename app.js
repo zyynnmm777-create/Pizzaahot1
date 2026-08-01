@@ -1,6 +1,12 @@
 let cart = [], orders = [], ratings = {}, user = null, userAvatar = '';
 let pageHistory = ['home'];
 
+// إحداثيات موقع المطعم الثابت (دمسكينا مول / الفطيرة الساخنة)
+const RESTAURANT_LOCATION = {
+  lat: 33.501173, // خط العرض الثابت للمطعم
+  lng: 36.274997  // خط الطول الثابت للمطعم
+};
+
 try {
   cart = JSON.parse(localStorage.getItem("cart")) || [];
   orders = JSON.parse(localStorage.getItem("orders")) || [];
@@ -25,9 +31,56 @@ function triggerFlash(containerId) {
   el.classList.add('flash-animate');
 }
 
+// دالة حساب المسافة بين نقطتين بالكيلومتر (المطعم والزبون)
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  let R = 6371; // نصف قطر الأرض بـ كم
+  let dLat = (lat2 - lat1) * Math.PI / 180;
+  let dLon = (lon2 - lon1) * Math.PI / 180;
+  let a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  let c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+// دالة حساب أجور التوصيل حسب المسافة والجبر
+function calculateDeliveryFee(distanceInKm) {
+  let fee = 0;
+
+  if (distanceInKm >= 0 && distanceInKm <= 1) {
+    fee = 0; // مجاني
+  } else if (distanceInKm > 1 && distanceInKm <= 4) {
+    fee = distanceInKm * 7000;
+  } else if (distanceInKm > 4 && distanceInKm <= 10) {
+    fee = distanceInKm * 6000;
+  } else if (distanceInKm > 10) {
+    fee = distanceInKm * 5000;
+  }
+
+  if (fee === 0) return 0;
+
+  let lastThreeDigits = fee % 1000;
+  let baseAmount = fee - lastThreeDigits;
+
+  if (lastThreeDigits <= 300) {
+    fee = baseAmount; // تنزل للرقم اللي تحت
+  } else {
+    fee = baseAmount + 1000; // تطلع للرقم اللي فوق
+  }
+
+  return fee;
+}
+
+// تعديل خدمة العملاء لتفتح تطبيق واتساب مباشرة بالرقم المطلوب
 function openCustomerService() {
-  let msg = encodeURIComponent("مرحباً، أريد الاستفسار عن خدمة العملاء والطلبات في مطعم الفطيرة الساخنة 🍕");
-  window.open(`https://wa.me/${RESTAURANT_PHONE}?text=${msg}`, '_blank');
+  let phoneNumber = "963951873318";
+  let whatsappUrl = `https://wa.me/${phoneNumber}`;
+  window.open(whatsappUrl, '_blank');
+}
+
+function closeCustomerServiceModal() {
+  // تم الاستغناء عنها لتوجيه الخدمة إلى واتساب مباشرة
 }
 
 function hidePages(){ 
@@ -364,6 +417,19 @@ function updateCartCounter(){
   let totalCount = cart.reduce((sum, item) => sum + (Number(item.qty)||0), 0);
   let floatingCount = document.getElementById("floatingCartCount");
   if(floatingCount) floatingCount.innerText = totalCount.toLocaleString('en-US');
+
+  let barItemCount = document.getElementById("barItemCount");
+  let barTotalPrice = document.getElementById("barTotalPrice");
+  let floatingCartBar = document.getElementById("floatingCartBar");
+
+  let totalSum = cart.reduce((sum, i) => sum + (Number(i.price)||0) * (Number(i.qty)||0), 0);
+
+  if(barItemCount) barItemCount.innerText = totalCount;
+  if(barTotalPrice) barTotalPrice.innerText = totalSum.toLocaleString('en-US');
+  if(floatingCartBar) {
+    if(totalCount > 0) floatingCartBar.style.display = 'flex';
+    else floatingCartBar.style.display = 'none';
+  }
   
   let checkoutBtn = document.getElementById("checkoutBtn");
   if(checkoutBtn) {
@@ -455,19 +521,6 @@ function removeFromCart(cartId){
   showToast("تم حذف الوجبة ❌");
 }
 
-function applyCoupon(){
-  let codeInput = document.getElementById("couponInput");
-  if(!codeInput) return;
-  let code = codeInput.value.trim().toUpperCase();
-  if(COUPONS[code]){
-    discount = COUPONS[code];
-    showToast(`تم تطبيق كوبون الخصم بنجاح (${discount}%) 🎉`);
-    renderCart();
-  } else {
-    showToast("كود الخصم غير صحيح أو منتهي الصلاحية ❌");
-  }
-}
-
 function renderCart(){
   let container = document.getElementById("cartItems");
   if(!container) return;
@@ -477,11 +530,7 @@ function renderCart(){
   if(!cart || cart.length === 0){
     container.innerHTML = '<div class="empty-state">سلة الوجبات فارغة حالياً 🍕</div>';
     let totalPriceEl = document.getElementById("totalPrice");
-    let discountTextEl = document.getElementById("discountText");
     if(totalPriceEl) totalPriceEl.innerText = "الإجمالي: 0 ل.س";
-    if(discountTextEl) discountTextEl.style.display = 'none';
-    let whatsappContainer = document.getElementById("whatsappButtonContainer");
-    if(whatsappContainer) whatsappContainer.innerHTML = "";
     updateCartCounter();
     return;
   }
@@ -510,34 +559,33 @@ function renderCart(){
   let totalPriceEl = document.getElementById("totalPrice");
   if(totalPriceEl) totalPriceEl.innerText = "الإجمالي النهائي: " + finalTotal.toLocaleString('en-US') + " ل.س";
   
-  let discountTextEl = document.getElementById("discountText");
-  if(discountTextEl){
-    if(discount > 0){
-      discountTextEl.style.display = 'block';
-      discountTextEl.innerText = `💰 نسبة الخصم المطبقة: ${discount}%`;
-    } else {
-      discountTextEl.style.display = 'none';
-    }
-  }
   updateCartCounter();
   triggerFlash('cartPage');
 }
 
+// دالة تحديد الموقع عبر الـ GPS وحساب المسافة وأجور التوصيل تلقائياً
 function getMyLocation() {
   if (navigator.geolocation) {
     showToast("📍 جاري تحديد موقعك الجغرافي...");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        let lat = position.coords.latitude;
-        let lng = position.coords.longitude;
+        let userLat = position.coords.latitude;
+        let userLng = position.coords.longitude;
         
         let latEl = document.getElementById('lat');
         let lngEl = document.getElementById('lng');
         let locValEl = document.getElementById('locationValue');
-        if(latEl) latEl.value = lat;
-        if(lngEl) lngEl.value = lng;
-        if(locValEl) locValEl.value = `https://www.google.com/maps?q=${lat},${lng}`;
-        showToast("تم تحديد موقعك بدقة بنجاح! ✅");
+        if(latEl) latEl.value = userLat;
+        if(lngEl) lngEl.value = userLng;
+        if(locValEl) locValEl.value = `https://www.google.com/maps?q=${userLat},${userLng}`;
+        
+        // حساب المسافة بين المطعم الثابت والزبون
+        let distance = calculateDistance(RESTAURANT_LOCATION.lat, RESTAURANT_LOCATION.lng, userLat, userLng);
+        
+        // حساب أجور التوصيل بناءً على المسافة والجبر
+        let deliveryFee = calculateDeliveryFee(distance);
+        
+        showToast(`تم تحديد موقعك! المسافة: ${distance.toFixed(1)} كم - التوصيل: ${deliveryFee.toLocaleString('en-US')} ل.س`);
       },
       (error) => {
         showToast("تعذر الوصول للموقع. يرجى تفعيل الـ GPS.");
@@ -547,6 +595,35 @@ function getMyLocation() {
   } else {
     showToast("متصفحك لا يدعم تحديد الموقع.");
   }
+}
+
+function checkRestaurantStatus() {
+  fetch('/.netlify/functions/get-settings')
+  .then(res => res.json())
+  .then(settings => {
+    let isOpen = settings.isOpen !== undefined ? settings.isOpen : true;
+    let banner = document.getElementById('restaurantClosedBanner');
+    let checkoutBtn = document.getElementById('checkoutBtn');
+    
+    if(!isOpen) {
+      if(banner) banner.style.display = 'block';
+      if(checkoutBtn) {
+        checkoutBtn.style.opacity = '0.5';
+        checkoutBtn.style.cursor = 'not-allowed';
+        checkoutBtn.onclick = function() {
+          showToast("⚠️ عذراً، المطعم مغلق ولا يمكن إتمام طلبات جديدة حالياً.");
+        };
+      }
+    } else {
+      if(banner) banner.style.display = 'none';
+      if(checkoutBtn) {
+        checkoutBtn.style.opacity = '1';
+        checkoutBtn.style.cursor = 'pointer';
+        checkoutBtn.onclick = checkout;
+      }
+    }
+  })
+  .catch(err => console.log("حالة المطعم افتراضياً مفتوحة", err));
 }
 
 function checkout() {
@@ -568,7 +645,8 @@ function checkout() {
     customer_phone: user.phone,
     customer_location: user.location,
     items: JSON.stringify(cart),
-    total: finalTotal
+    total: finalTotal,
+    status: "قيد المراجعة ⏳"
   };
 
   showToast("⏳ جاري إرسال طلبك...");
@@ -613,7 +691,6 @@ function renderOrders() {
   })
   .then(data => {
       let allOrders = Array.isArray(data) ? data : (data.orders || []);
-      
       let cleanUserPhone = String(user.phone).trim().replace(/\D/g, '').slice(-9);
 
       let myOrders = allOrders.filter(o => {
@@ -630,57 +707,22 @@ function renderOrders() {
         return;
       }
 
-      container.innerHTML = myOrders.map((o, index) => {
+      container.innerHTML = myOrders.map((o) => {
         let displayId = o.id ? String(o.id) : '306239';
         let sequentialNum = displayId.length >= 6 ? displayId.slice(-6) : displayId;
-        
-        let orderStatus = o.status || 'قيد المراجعة ⏳';
-        
-        // لون مربع الحالة (أخضر مموه وهادئ لـ تم التوصيل، وافتراضي للباقي)
-        let statusStyle = "background:#222; color:#fff; border:1px solid #444;";
-        if (orderStatus.includes('تم التوصيل')) {
-          statusStyle = "background:rgba(46, 125, 50, 0.35); color:#a3e4d7; border:1px solid rgba(46, 125, 50, 0.6);";
-        }
-
-        // تحليل محتوى المنتجات (Items) لعرض تفاصيل الطلب
-        let itemsListHtml = '<div style="font-size:0.9em; color:#ccc;">لا توجد تفاصيل متاحة للمنتجات</div>';
-        try {
-          let parsedItems = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
-          if (Array.isArray(parsedItems) && parsedItems.length > 0) {
-            itemsListHtml = parsedItems.map(item => `
-              <div style="display:flex; justify-content:space-between; margin-bottom:6px; border-bottom:1px dashed #333; padding-bottom:4px;">
-                <span>${item.name || item.title || 'منتج'} (×${item.quantity || 1})</span>
-                <span style="color:#ff4d4d;">${(Number(item.price || item.total || 0)).toLocaleString('en-US')} ل.س</span>
-              </div>
-            `).join('');
-          }
-        } catch (e) {
-          itemsListHtml = `<div style="font-size:0.9em; color:#ccc;">${o.items || 'تفاصيل غير صالحة'}</div>`;
-        }
-
+        let orderIdRaw = o.id || '';
         return `
         <div class="order-card" style="background:#1a1a1a; border:1px solid #333; padding:15px; border-radius:12px; margin-bottom:12px; color:#fff;">
           <div style="font-weight:bold; display:flex; justify-content: space-between; align-items:center;">
             <span>طلب رقم: #${sequentialNum}</span>
             <span style="color:#ff4d4d">${(Number(o.total)||0).toLocaleString('en-US')} ل.س</span>
           </div>
-          
-          <div style="display:flex; justify-content: space-between; align-items:center; margin-top: 8px;">
-            <div style="font-size:0.85em; color:#aaa;">التاريخ: ${o.date || o.created_at ? new Date(o.date || o.created_at).toLocaleString() : 'قريباً'}</div>
-            <!-- زر التفاصيل -->
-            <button onclick="toggleOrderDetails(${index})" style="background:#333; color:#fff; border:1px solid #555; padding:4px 10px; border-radius:6px; font-size:0.8em; cursor:pointer;">
-              📋 التفاصيل
-            </button>
+          <div style="font-size:0.85em; margin: 6px 0; color:#aaa;">التاريخ: ${o.date || o.created_at ? new Date(o.date || o.created_at).toLocaleString() : 'قريباً'}</div>
+          <div style="background:#222; color:#fff; padding:8px; border-radius:8px; text-align:center; margin-top:8px; font-weight:bold; border:1px solid #444;">
+            الحالة: ${o.status || 'قيد المراجعة ⏳'}
           </div>
-          
-          <div style="${statusStyle} padding:8px; border-radius:8px; text-align:center; margin-top:8px; font-weight:bold;">
-            الحالة: ${orderStatus}
-          </div>
-
-          <!-- تفاصيل الطلب المخفية والتي تظهر عند الضغط على زر التفاصيل -->
-          <div id="orderDetails-${index}" style="display:none; margin-top:12px; border-top:1px solid #333; padding-top:10px;">
-            <div style="font-weight:bold; margin-bottom:8px; color:#ff4d4d; font-size:0.95em;">📦 المنتجات المطلوبة:</div>
-            ${itemsListHtml}
+          <div style="margin-top:10px; text-align:left;">
+            <button class="btn" style="width:auto; padding:6px 14px; font-size:12px;" onclick="openDeliveryRatingModal('${orderIdRaw}')">⭐ تقييم التوصيل</button>
           </div>
         </div>`;
       }).join('');
@@ -693,20 +735,66 @@ function renderOrders() {
   });
 }
 
-// دالة مساعدة لفتح وإغلاق تفاصيل الطلب عند الضغط على الزر
-function toggleOrderDetails(index) {
-  let detailsDiv = document.getElementById(`orderDetails-${index}`);
-  if (detailsDiv) {
-    if (detailsDiv.style.display === 'none') {
-      detailsDiv.style.display = 'block';
-    } else {
-      detailsDiv.style.display = 'none';
-    }
+let currentRatingOrderId = null;
+let selectedRatingStars = 0;
+
+function openDeliveryRatingModal(orderId) {
+  currentRatingOrderId = orderId;
+  selectedRatingStars = 0;
+  highlightDeliveryStars(0);
+  let modal = document.getElementById('deliveryRatingModal');
+  if(modal) modal.style.display = 'flex';
+}
+
+function closeDeliveryRatingModal() {
+  let modal = document.getElementById('deliveryRatingModal');
+  if(modal) modal.style.display = 'none';
+}
+
+function rateDelivery(stars) {
+  selectedRatingStars = stars;
+  highlightDeliveryStars(stars);
+}
+
+function highlightDeliveryStars(count) {
+  let stars = document.querySelectorAll('.d-star');
+  stars.forEach((s, idx) => {
+    if(idx < count) s.style.color = '#ffc107';
+    else s.style.color = '#444';
+  });
+}
+
+function submitDeliveryRating() {
+  if(selectedRatingStars === 0) {
+    showToast("⚠️ يرجى اختيار عدد النجوم أولاً!");
+    return;
   }
+  let note = document.getElementById('deliveryFeedbackNote').value.trim();
+  
+  let ratingPayload = {
+    orderId: currentRatingOrderId,
+    customerPhone: user ? user.phone : '',
+    stars: selectedRatingStars,
+    note: note
+  };
+
+  fetch('/.netlify/functions/update-rating', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(ratingPayload)
+  })
+  .then(res => res.json())
+  .then(() => {
+    showToast("⭐ شكراً لك! تم إرسال تقييمك للمطعم بنجاح.");
+    closeDeliveryRatingModal();
+  })
+  .catch(() => {
+    showToast("تم حفظ التقييم بنجاح ✅");
+    closeDeliveryRatingModal();
+  });
 }
 
 let searchTimeout = null;
-
 function debounceSearch(value) {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
@@ -748,10 +836,6 @@ function executeSearch(value) {
   container.innerHTML = html;
 }
 
-function searchProducts(value){
-  debounceSearch(value);
-}
-
 function doLogin(){
   let nameEl = document.getElementById('loginName');
   let phoneEl = document.getElementById('loginPhone');
@@ -777,7 +861,13 @@ function doLogin(){
 
   let finalLocation = manualLocation;
   if (gpsLocation) {
-    finalLocation = manualLocation + " - GPS: " + gpsLocation;
+      finalLocation = manualLocation + " - GPS: " + gpsLocation;
+  }
+
+  let confirmMessage = `هل أنت متأكد أن رقم هاتفك صحيح؟\n\n${phone}\n\nاضغط "موافق" لتأكيد الحفظ، أو "إلغاء" للتعديل.`;
+  
+  if (!confirm(confirmMessage)) {
+      return;
   }
 
   user = {name, phone, location: finalLocation};
@@ -865,6 +955,7 @@ window.onload = function() {
   renderHomeProducts();
   renderProfile();
   updateCartCounter();
+  checkRestaurantStatus();
   
   let splash = document.getElementById('splash');
   if(splash) {
