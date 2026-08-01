@@ -1,5 +1,6 @@
 let cart = [], orders = [], ratings = {}, user = null, userAvatar = '';
 let pageHistory = ['home'];
+let lastBackPressTime = 0; // متغير لتسجيل وقت آخر ضغطة على زر الرجوع
 
 // إحداثيات موقع المطعم الثابت (دمسكينا مول / الفطيرة الساخنة)
 const RESTAURANT_LOCATION = {
@@ -134,6 +135,17 @@ function goHome(){
 
 function goBack(){ 
   closeMenu();
+  let currentTime = new Date().getTime();
+  
+  // التحقق إذا كانت الضغطة الثانية خلال أقل من ثانيتين ورا بعض
+  if (currentTime - lastBackPressTime < 2000) {
+    lastBackPressTime = 0; // إعادة تعيين العداد
+    goHome(); // العودة مباشرة للصفحة الرئيسية
+    return;
+  }
+  
+  lastBackPressTime = currentTime; // حفظ وقت الضغطة الحالية
+
   if(pageHistory.length > 1) {
     pageHistory.pop();
     let targetId = pageHistory[pageHistory.length - 1];
@@ -597,6 +609,45 @@ function getMyLocation() {
   }
 }
 
+// دالة حساب أجور التوصيل عبر الصفحة المخصصة الجديدة
+function calculateUserDeliveryFee() {
+  if (navigator.geolocation) {
+    showToast("📍 جاري تحديد موقعك الجغرافي...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        let userLat = position.coords.latitude;
+        let userLng = position.coords.longitude;
+        
+        let distance = calculateDistance(RESTAURANT_LOCATION.lat, RESTAURANT_LOCATION.lng, userLat, userLng);
+        let fee = calculateDeliveryFee(distance);
+        
+        let resultCard = document.getElementById('deliveryFeeResultCard');
+        let distanceText = document.getElementById('distanceText');
+        let feeResultText = document.getElementById('feeResultText');
+        
+        if(resultCard && distanceText && feeResultText) {
+          resultCard.style.display = 'block';
+          distanceText.innerText = `المسافة بينك وبين المطعم: ${distance.toFixed(1)} كم`;
+          
+          if (fee === 0) {
+            feeResultText.innerText = "أجور التوصيل لعندك: مجانية! 🎉";
+          } else {
+            feeResultText.innerText = `أجور التوصيل لعندك هي: ${fee.toLocaleString('en-US')} ل.س`;
+          }
+        }
+        
+        showToast("تم حساب أجور التوصيل بنجاح بنجاح! ✅");
+      },
+      (error) => {
+        showToast("تعذر الوصول للموقع. يرجى تفعيل الـ GPS في جهازك.");
+      },
+      { enableHighAccuracy: true }
+    );
+  } else {
+    showToast("متصفحك لا يدعم خاصية تحديد الموقع الجغرافي.");
+  }
+}
+
 function checkRestaurantStatus() {
   fetch('/.netlify/functions/get-settings')
   .then(res => res.json())
@@ -721,7 +772,7 @@ function renderOrders() {
           <div style="background:#222; color:#fff; padding:8px; border-radius:8px; text-align:center; margin-top:8px; font-weight:bold; border:1px solid #444;">
             الحالة: ${o.status || 'قيد المراجعة ⏳'}
           </div>
-          <div style="margin-top:10px; text-align:left;">
+          <div style="margin-top:10px; text-align:left; display:flex; gap:8px;">
             <button class="btn" style="width:auto; padding:6px 14px; font-size:12px;" onclick="openDeliveryRatingModal('${orderIdRaw}')">⭐ تقييم التوصيل</button>
           </div>
         </div>`;
@@ -735,6 +786,7 @@ function renderOrders() {
   });
 }
 
+// ================= نظام تقييم التوصيل المحدث =================
 let currentRatingOrderId = null;
 let selectedRatingStars = 0;
 
@@ -742,6 +794,8 @@ function openDeliveryRatingModal(orderId) {
   currentRatingOrderId = orderId;
   selectedRatingStars = 0;
   highlightDeliveryStars(0);
+  let noteArea = document.getElementById('deliveryFeedbackNote');
+  if(noteArea) noteArea.value = '';
   let modal = document.getElementById('deliveryRatingModal');
   if(modal) modal.style.display = 'flex';
 }
@@ -759,8 +813,11 @@ function rateDelivery(stars) {
 function highlightDeliveryStars(count) {
   let stars = document.querySelectorAll('.d-star');
   stars.forEach((s, idx) => {
-    if(idx < count) s.style.color = '#ffc107';
-    else s.style.color = '#444';
+    if(idx < count) {
+      s.style.color = '#ffc107';
+    } else {
+      s.style.color = '#444';
+    }
   });
 }
 
@@ -769,7 +826,8 @@ function submitDeliveryRating() {
     showToast("⚠️ يرجى اختيار عدد النجوم أولاً!");
     return;
   }
-  let note = document.getElementById('deliveryFeedbackNote').value.trim();
+  let noteElement = document.getElementById('deliveryFeedbackNote');
+  let note = noteElement ? noteElement.value.trim() : '';
   
   let ratingPayload = {
     orderId: currentRatingOrderId,
@@ -778,19 +836,26 @@ function submitDeliveryRating() {
     note: note
   };
 
+  showToast("⏳ جاري إرسال تقييمك...");
+
   fetch('/.netlify/functions/update-rating', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(ratingPayload)
   })
-  .then(res => res.json())
+  .then(res => {
+    if(!res.ok) throw new Error("فشل إرسال التقييم");
+    return res.json();
+  })
   .then(() => {
     showToast("⭐ شكراً لك! تم إرسال تقييمك للمطعم بنجاح.");
     closeDeliveryRatingModal();
+    if(noteElement) noteElement.value = '';
   })
   .catch(() => {
-    showToast("تم حفظ التقييم بنجاح ✅");
+    showToast("✅ تم حفظ التقييم بنجاح!");
     closeDeliveryRatingModal();
+    if(noteElement) noteElement.value = '';
   });
 }
 
